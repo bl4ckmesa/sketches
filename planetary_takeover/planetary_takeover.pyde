@@ -91,7 +91,7 @@ def orbit_coord(ship, planet):
         ship.x = planet.x + x_offset
         ship.y = planet.y + y_offset
         ship.grid = grid_index((ship.x, ship.y), g.bounds)
-        ship_grid[id(ship)] = ship
+        g.ship_grid[id(ship)] = ship
     return ship
 
 def build_planets(n, bounds):
@@ -142,12 +142,12 @@ def build_ships(planets):
                 newShip.owner = planet.owner
                 newShip.altitude = planet.size * 0.7
                 newShip.grid = grid_index((newShip.x, newShip.y), g.bounds)
-                ship_grid[id(newShip)] = newShip
+                g.ship_grid[id(newShip)] = newShip
                 # Here I need to append to the global planets variable
                 planets[planet.number - 1].ships.append(newShip)
 
 def draw_planets(planets):
-    population_limit = 0
+    g.population_limit = 0
     for planet in planets:
         filler(planet.color)
         ellipse(planet.x, planet.y, planet.size, planet.size)
@@ -158,7 +158,7 @@ def draw_planets(planets):
             fill(255, 255, 255, 30)
             ellipse(planet.x, planet.y, planet.size * 6, planet.size * 6)
         if planet.owner == "p1":
-            population_limit += planet.ship_max
+            g.population_limit += planet.ship_max
         # Also make an HP bar if it's under attack
         if planet.hp < 100:
             ship_colors = {}
@@ -211,7 +211,7 @@ def mousePressed():
             for ship in g.planets[selected - 1].ships:
                 if ship.owner == "p1":
                     ship.destination = newSelected
-                    ships.append(ship)
+                    g.ships.append(ship)
                 else:
                     ships_tostay.append(ship)
             g.planets[selected - 1].ships = ships_tostay
@@ -239,15 +239,15 @@ def draw_ships_inflight(ships):
                 ship.x = ship.x + (travel_speed / distance) * (dest_x - ship.x)
                 ship.y = ship.y + (travel_speed / distance) * (dest_y - ship.y)
                 ship.grid = grid_index((ship.x, ship.y), g.bounds)
-                ship_grid[id(ship)] = ship
+                g.ship_grid[id(ship)] = ship
                 filler(ship.color)
                 ellipse(ship.x, ship.y, 5, 5)
 
 def laser_ship(ship):
     try:
-        ship_grid_idx = ship_grid[id(ship)].grid
+        ship_grid_idx = g.ship_grid[id(ship)].grid
         ships_in_grid = []
-        for shipid, shipobj in ship_grid.iteritems():
+        for shipid, shipobj in g.ship_grid.iteritems():
             if shipobj.grid == ship_grid_idx:
                 if shipid != id(ship):
                     ships_in_grid.append(str(shipid))
@@ -255,16 +255,15 @@ def laser_ship(ship):
             closest = {"id": None, "dist": 10000}
             for shipid in ships_in_grid:
                 # Get closest ship
-                enemy_ship = ship_grid[int(shipid)]
-                distance = sqrt(
-                    (ship.x - enemy_ship.x) ** 2 + (ship.y - enemy_ship.y) ** 2)
-                if ship_grid[id(enemy_ship)].owner != ship.owner:
+                enemy_ship = g.ship_grid[int(shipid)]
+                distance = sqrt((ship.x - enemy_ship.x) ** 2 + (ship.y - enemy_ship.y) ** 2)
+                if g.ship_grid[id(enemy_ship)].owner != ship.owner:
                     if distance < closest['dist']:
                         closest['id'] = id(enemy_ship)
                         closest['dist'] = distance
             if closest['id'] is not None:
-                if step % 5 == 0:
-                    enemy = ship_grid[int(closest['id'])]
+                if g.step % 5 == 0:
+                    enemy = g.ship_grid[int(closest['id'])]
                     enemy.hp -= 1
                     stroker(ship.color)
                     line(enemy.x, enemy.y, ship.x, ship.y)
@@ -276,7 +275,7 @@ def laser_ship(ship):
         except:
             pass
 
-def calculate_damage():
+def calculate_damage(ships):
     # Get ships in flight as well as ships around planets
     for ship in ships:
         laser_ship(ship)
@@ -292,8 +291,8 @@ def remove_dead_ships(ships):
                 ship_list.append(ship)
             else:
                 try:
-                    del ship_grid[id(ship)]
-                    deleted_grid[id(ship)] = ship
+                    del g.ship_grid[id(ship)]
+                    g.deleted_grid[id(ship)] = ship
                 except:
                     print "Couldn't delete", id(ship)
         g.planets[planet.number - 1].ships = ship_list
@@ -302,8 +301,8 @@ def remove_dead_ships(ships):
         if ship.hp > 0:
             flight_list.append(ship)
         else:
-            del ship_grid[id(ship)]
-            deleted_grid[id(ship)] = ship
+            del g.ship_grid[id(ship)]
+            g.deleted_grid[id(ship)] = ship
     return flight_list
 
 def grid_index(coord, bounds):
@@ -335,38 +334,28 @@ def draw_debug():
     textSize(12)
     fill(255, 255, 255, 100)
     text("Bounds: %s" % str(g.bounds), 10, 20)
-    text("Step: %s" % str(step), 10, 35)
-    text("P1 Population Limit: %s" % str(population_limit), 10, 50)
+    text("Step: %s" % str(g.step), 10, 35)
+    text("P1 Population Limit: %s" % str(g.population_limit), 10, 50)
 
 def setup():
     global g
     g = GlobalVars()
     size(g.bounds[0], g.bounds[1])
     frameRate(g.framerate)
-    global ships
-    ships = []
-    global ship_grid
-    ship_grid = {}
-    global deleted_grid
-    deleted_grid = {}
-    global step
-    step = 0
-    global population_limit
-    population_limit = 0
+    g.step = 0
+    g.population_limit = 0
     g.planets = build_planets(5, g.bounds)
 
 def draw():
     background(50)
-    global step
-    global ships
-    step += 1
+    g.step += 1
     #ellipse(mouseX, mouseY, 10, 10);
-    draw_ships_inflight(ships)
+    draw_ships_inflight(g.ships)
     calculate_takeover(g.planets)
     draw_planets(g.planets)
     draw_ships(g.planets)
     build_ships(g.planets)
-    ships = remove_dead_ships(ships)
-    calculate_damage()
+    g.ships = remove_dead_ships(g.ships)
+    calculate_damage(g.ships)
     draw_debug()
 
