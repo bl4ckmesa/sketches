@@ -2,7 +2,6 @@ import random
 import types
 
 class Planet():
-
     def __init__(self):
         self.x = 0
         self.y = 0
@@ -29,6 +28,7 @@ class Ship():
         self.owner = "mob"
         self.closest_enemy = None
         self.grid = "00"
+        self.clockwise = True
 
 class GlobalVars():
     def __init__(self):
@@ -83,8 +83,11 @@ def find_empty_spot(planet, planets, bounds):
 
 def orbit_coord(ship, planet):
     if ship.destination is None:
-        ship.degree += ship.orbital_speed
-        if ship.degree == 360:
+        if ship.clockwise:
+            ship.degree += ship.orbital_speed
+        else:
+            ship.degree -= ship.orbital_speed
+        if ship.degree == 360 or ship.degree == -360:
             ship.degree = 0
         orbit_distance = ship.altitude + (random.randint(-5, 5) / 100)
         x_offset = cos(ship.degree) * orbit_distance
@@ -143,6 +146,8 @@ def build_ships(planets):
                 newShip.owner = planet.owner
                 newShip.altitude = planet.size * 0.7
                 newShip.grid = grid_index((newShip.x, newShip.y), g.bounds)
+                newShip.clockwise = bool(random.getrandbits(1)) # Faster than random.choice([True, False])
+                newShip.orbital_speed = newShip.orbital_speed * random.randint(-100,100)/99
                 g.ship_grid[id(newShip)] = newShip
                 # Here I need to append to the global planets variable
                 planets[planet.number - 1].ships.append(newShip)
@@ -204,23 +209,28 @@ def mousePressed():
                 g.planets[planet.number - 1].selected = False
 
     if selected != None and newSelected != None:
-        planet_distance = sqrt((g.planets[selected - 1].x - g.planets[newSelected - 1].x) ** 2 + (g.planets[selected - 1].y - g.planets[newSelected - 1].y) ** 2)
-        planet_range = (g.planets[selected - 1].size * 3) + g.planets[newSelected - 1].size/2 
+        s = g.planets[selected - 1]
+        new = g.planets[newSelected - 1]
+        planet_distance = sqrt((s.x - new.x) ** 2 + (s.y - new.y) ** 2)
+        planet_range = (s.size * 3) + new.size/2 
         print planet_distance, "/", planet_range
         if planet_distance < planet_range:
             ships_tostay = []
-            for ship in g.planets[selected - 1].ships:
+            for ship in s.ships:
                 if ship.owner == "p1":
-                    ship.destination = newSelected
+                    ship.destination = new.number
+                    # Calculate their orientation to then new planet
+                    newDegree = atan2((new.y - ship.y), (new.x - ship.x)) + 3.141
+                    ship.degree = newDegree
                     g.ships.append(ship)
                 else:
                     ships_tostay.append(ship)
-            g.planets[selected - 1].ships = ships_tostay
+            s.ships = ships_tostay
             for planet in g.planets:
                 g.planets[planet.number - 1].selected = False
         else:
-            g.planets[selected - 1].selected = False
-            g.planets[newSelected - 1].selected = False
+            s.selected = False
+            new.selected = False
 
 def draw_ships_inflight(ships):
     for ship in ships:
