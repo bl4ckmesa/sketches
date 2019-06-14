@@ -32,11 +32,12 @@ class Ship():
 
 class GlobalVars():
     def __init__(self):
-        self.bounds = (800, 600)
+        self.bounds = (1000, 800)
         self.framerate = 30
         self.planets = []
         self.ships = []
         self.deleted_grid = {}
+        self.ship_grid = {}
         self.step = 0
         self.population_limit = 0
 
@@ -344,7 +345,7 @@ def setup():
     frameRate(g.framerate)
     g.step = 0
     g.population_limit = 0
-    g.planets = build_planets(5, g.bounds)
+    g.planets = build_planets(10, g.bounds)
 
 def draw():
     background(50)
