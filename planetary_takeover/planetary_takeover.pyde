@@ -342,11 +342,29 @@ def calculate_takeover(planets):
                 planets[planet.number - 1].color = shipcolors[highest]
 
 def draw_debug():
+    total_ship_count = { "p1": 0, "p2": 0, "mob": 0 }
+    total_planet_count = { "p1": 0, "p2": 0, "mob": 0 }
+    for planet in g.planets:
+        total_planet_count[planet.owner] += 1
+        for ship in planet.ships:
+            total_ship_count[ship.owner] += 1
+    for ship in g.ships:
+        total_ship_count[ship.owner] += 1
+
+    t = []
+    t.append("Bounds: %s" % str(g.bounds))
+    t.append("Step: %s" % str(g.step))
+    t.append("P1 Population Limit: %s" % str(g.population_limit))
+    t.append("Ships for P1/P2/Mob: %d/%d/%d" % (total_ship_count['p1'], total_ship_count['p2'], total_ship_count['mob']))
+    t.append("Planets for P1/P2/Mob: %d/%d/%d" % (total_planet_count['p1'], total_planet_count['p2'], total_planet_count['mob']))
     textSize(12)
     fill(255, 255, 255, 100)
-    text("Bounds: %s" % str(g.bounds), 10, 20)
-    text("Step: %s" % str(g.step), 10, 35)
-    text("P1 Population Limit: %s" % str(g.population_limit), 10, 50)
+    x = 10
+    y = 20
+    for l in t:
+        text(l, x, y)
+        y += 15
+            
 
 def setup():
     global g
