@@ -29,6 +29,7 @@ class Ship():
         self.closest_enemy = None
         self.grid = "00"
         self.clockwise = True
+        self.orientation = 0
 
 class GlobalVars():
     def __init__(self):
@@ -85,8 +86,10 @@ def orbit_coord(ship, planet):
     if ship.destination is None:
         if ship.clockwise:
             ship.degree += ship.orbital_speed
+            ship.orientation = ship.degree + PI/2
         else:
             ship.degree -= ship.orbital_speed
+            ship.orientation = ship.degree - PI/2
         if ship.degree == 360 or ship.degree == -360:
             ship.degree = 0
         orbit_distance = ship.altitude + (random.randint(-5, 5) / 100)
@@ -147,7 +150,7 @@ def build_ships(planets):
                 newShip.altitude = planet.size * 0.7
                 newShip.grid = grid_index((newShip.x, newShip.y), g.bounds)
                 newShip.clockwise = bool(random.getrandbits(1)) # Faster than random.choice([True, False])
-                newShip.orbital_speed = newShip.orbital_speed * random.randint(-100,100)/99
+                newShip.orbital_speed = newShip.orbital_speed * (random.randint(90,110)/100.0)
                 g.ship_grid[id(newShip)] = newShip
                 # Here I need to append to the global planets variable
                 planets[planet.number - 1].ships.append(newShip)
@@ -162,7 +165,7 @@ def draw_planets(planets):
         #text(planet.number, planet.x, planet.y)
         if planet.selected:
             fill(255, 255, 255, 30)
-            ellipse(planet.x, planet.y, planet.size * 6, planet.size * 6)
+            ellipse(planet.x, planet.y, planet.size * 10, planet.size * 10)
         if planet.owner == "p1":
             g.population_limit += planet.ship_max
         # Also make an HP bar if it's under attack
@@ -187,7 +190,7 @@ def draw_ships(planets):
         for ship in planet.ships:
             ship = orbit_coord(ship, planet)
             filler(ship.color)
-            ellipse(ship.x, ship.y, 5, 5)
+            draw_ship(ship)
 
 # This is a magical function:
 # https://processing.org/reference/mouseClicked_.html
@@ -212,16 +215,17 @@ def mousePressed():
         s = g.planets[selected - 1]
         new = g.planets[newSelected - 1]
         planet_distance = sqrt((s.x - new.x) ** 2 + (s.y - new.y) ** 2)
-        planet_range = (s.size * 3) + new.size/2 
-        print planet_distance, "/", planet_range
+        planet_range = (s.size * 5) + new.size/2 
+        #print planet_distance, "/", planet_range
         if planet_distance < planet_range:
             ships_tostay = []
             for ship in s.ships:
                 if ship.owner == "p1":
                     ship.destination = new.number
                     # Calculate their orientation to then new planet
-                    newDegree = atan2((new.y - ship.y), (new.x - ship.x)) + 3.141
+                    newDegree = atan2((new.y - ship.y), (new.x - ship.x)) + PI
                     ship.degree = newDegree
+                    ship.orientation = newDegree + PI
                     g.ships.append(ship)
                 else:
                     ships_tostay.append(ship)
@@ -231,6 +235,20 @@ def mousePressed():
         else:
             s.selected = False
             new.selected = False
+
+def draw_ship(ship):
+    #ellipse(ship.x, ship.y, 5, 5)
+    #line_length = 5
+    #line_x = ship.x + (cos(ship.orientation) * line_length)
+    #line_y = ship.y + (sin(ship.orientation) * line_length)
+    #line(ship.x, ship.y, line_x, line_y)
+    x1 = ship.x + (cos(ship.orientation) * 14)
+    y1 = ship.y + (sin(ship.orientation) * 14)
+    x2 = ship.x - (cos(ship.orientation+PI/2) * 4)
+    y2 = ship.y - (sin(ship.orientation+PI/2) * 4)
+    x3 = ship.x - (cos(ship.orientation-PI/2) * 4)
+    y3 = ship.y - (sin(ship.orientation-PI/2) * 4)
+    triangle(x1, y1, x2, y2, x3, y3)
 
 def draw_ships_inflight(ships):
     for ship in ships:
@@ -252,7 +270,7 @@ def draw_ships_inflight(ships):
                 ship.grid = grid_index((ship.x, ship.y), g.bounds)
                 g.ship_grid[id(ship)] = ship
                 filler(ship.color)
-                ellipse(ship.x, ship.y, 5, 5)
+                draw_ship(ship)
 
 def laser_ship(ship):
     try:
@@ -357,6 +375,10 @@ def draw_debug():
     t.append("P1 Population Limit: %s" % str(g.population_limit))
     t.append("Ships for P1/P2/Mob: %d/%d/%d" % (total_ship_count['p1'], total_ship_count['p2'], total_ship_count['mob']))
     t.append("Planets for P1/P2/Mob: %d/%d/%d" % (total_planet_count['p1'], total_planet_count['p2'], total_planet_count['mob']))
+    if len(g.planets[1].ships) > 0:
+        s = g.planets[1].ships[0]
+        s.color = 0
+        t.append("Ship 0: %s, Clockwise: %s" % (s.orientation,str(s.clockwise))) 
     textSize(12)
     fill(255, 255, 255, 100)
     x = 10
@@ -365,7 +387,6 @@ def draw_debug():
         text(l, x, y)
         y += 15
             
-
 def setup():
     global g
     g = GlobalVars()
