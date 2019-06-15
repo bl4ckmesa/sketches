@@ -45,6 +45,7 @@ class GlobalVars():
         self.population_limit = { "p1": 0, "p2": 0, "mob": 0 }
         self.current_population = { "p1": 0, "p2": 0, "mob": 0 }
         self.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
+        self.ai_speed = 150
 
 def filler(color):
     if isinstance(color, types.IntType):
@@ -262,26 +263,27 @@ def draw_ship(ship):
     triangle(x1, y1, x2, y2, x3, y3)
 
 def p2_ai(g):
-    if g.step % 90 == 0:
-        print "Thinking..."
+    if g.step % g.ai_speed == 0:
+        #print "Thinking..."
         p2_planets = []
         for planet in g.planets:
             if planet.owner == "p2":
                 p2_planets.append(planet)
         for p in p2_planets:
-            print "Thinking about", p.number
+            #print "Thinking about", p.number
             planets_to_attack = []
             for planet in g.planets:
                 distance = sqrt((p.x - planet.x) ** 2 + (p.y - planet.y) ** 2)
-                if distance < p.range:
-                    print "Planet %d is in range." % planet.number
+                planet_range = p.range / 2 + planet.size/2
+                if distance < planet_range:
+                    #print "Planet %d is in range. (Distance: %d/%d)" % (planet.number, distance, p.range)
                     if planet.owner != p.owner:
-                        print "Planet %d is an enemy (%s)" % (planet.number, planet.owner)
+                        #print "Planet %d is an enemy (%s)" % (planet.number, planet.owner)
                         if len(planet.ships) < len(p.ships):
-                            print "Planet %d is weak.  Attacking!" % planet.number
+                            #print "Planet %d is weak.  Attacking!" % planet.number
                             planets_to_attack.append(planet)
             if len(planets_to_attack) > 0:
-                print "%d planets available." % len(planets_to_attack)
+                #print "%d planets available." % len(planets_to_attack)
                 target = random.choice(planets_to_attack)
                 print "Sending ships from %d to %d" % (p.number, target.number)
                 send_ships(p, target)
@@ -428,10 +430,10 @@ def draw_debug():
     t.append("Population Limits: %s" % str(g.population_limit))
     t.append("Shipss: %s" % str(g.current_population))
     t.append("Planets: %s" % str(g.current_planets))
-    if len(g.planets[1].ships) > 0:
-        s = g.planets[1].ships[0]
-        s.color = 0
-        t.append("Ship 0: %s, Clockwise: %s" % (s.orientation,str(s.clockwise))) 
+    #if len(g.planets[1].ships) > 0:
+    #    s = g.planets[1].ships[0]
+    #    s.color = 0
+    #    t.append("Ship 0: %s, Clockwise: %s" % (s.orientation,str(s.clockwise))) 
     textSize(12)
     fill(255, 255, 255, 100)
     x = 10
