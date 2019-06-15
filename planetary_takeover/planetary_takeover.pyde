@@ -13,11 +13,13 @@ class Planet():
         self.color = 200
         self.ship_rate = 0.05
         self.selected = False
+        self.range = 0
 
 class Ship():
     def __init__(self):
         self.hp = 5
         self.destination = None
+        self.source = None
         self.planet = 0
         self.altitude = 10
         self.degree = 0
@@ -40,7 +42,9 @@ class GlobalVars():
         self.deleted_grid = {}
         self.ship_grid = {}
         self.step = 0
-        self.population_limit = 0
+        self.population_limit = { "p1": 0, "p2": 0, "mob": 0 }
+        self.current_population = { "p1": 0, "p2": 0, "mob": 0 }
+        self.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
 
 def filler(color):
     if isinstance(color, types.IntType):
@@ -104,7 +108,6 @@ def orbit_coord(ship, planet):
 def build_planets(n, bounds):
     planets = []
     planet_scale = [30, 45, 60, 80, 100]
-
     p1 = Planet()
     p1.color = (200, 50, 50)
     p1.x = 120
@@ -122,7 +125,7 @@ def build_planets(n, bounds):
     p2.size = 80
     p2.ship_max = 8
     p2.number = 2
-    p2.ownder = "p2"
+    p2.owner = "p2"
     planets.append(p2)
 
     for p in range(3, n + 3):
@@ -135,6 +138,9 @@ def build_planets(n, bounds):
         planet.x, planet.y = find_empty_spot(planet, planets, bounds)
         if (planet.x, planet.y) != (0, 0):
             planets.append(planet)
+            
+    for p in planets:
+        p.range = p.size * 10
     return planets
 
 def build_ships(planets):
@@ -143,7 +149,7 @@ def build_ships(planets):
     for planet in planets:
         if len(planet.ships) < planet.ship_max:
             r = float(random.randint(0, 99)) / 100
-            if planet.ship_rate >= r:
+            if planet.ship_rate >= r and g.current_population[planet.owner] < g.population_limit[planet.owner]:
                 newShip = Ship()
                 newShip.color = planet.color
                 newShip.owner = planet.owner
@@ -156,7 +162,8 @@ def build_ships(planets):
                 planets[planet.number - 1].ships.append(newShip)
 
 def draw_planets(planets):
-    g.population_limit = 0
+    # Rebuild population from scratch every time
+    g.population_limit = { "p1": 0, "p2": 0, "mob": 0 }
     for planet in planets:
         filler(planet.color)
         ellipse(planet.x, planet.y, planet.size, planet.size)
@@ -165,9 +172,9 @@ def draw_planets(planets):
         #text(planet.number, planet.x, planet.y)
         if planet.selected:
             fill(255, 255, 255, 30)
-            ellipse(planet.x, planet.y, planet.size * 10, planet.size * 10)
-        if planet.owner == "p1":
-            g.population_limit += planet.ship_max
+            ellipse(planet.x, planet.y, planet.range, planet.range)
+        
+        g.population_limit[planet.owner] += planet.ship_max
         # Also make an HP bar if it's under attack
         if planet.hp < 100:
             ship_colors = {}
@@ -192,6 +199,21 @@ def draw_ships(planets):
             filler(ship.color)
             draw_ship(ship)
 
+def send_ships(s, new):
+    ships_tostay = []
+    for ship in s.ships:
+        if ship.owner == s.owner:
+            ship.destination = new.number
+            ship.source = s.number
+            # Calculate their orientation to the new planet
+            newDegree = atan2((new.y - ship.y), (new.x - ship.x)) + PI
+            ship.degree = newDegree
+            ship.orientation = newDegree + PI
+            g.ships.append(ship)
+        else:
+            ships_tostay.append(ship)
+    s.ships = ships_tostay
+
 # This is a magical function:
 # https://processing.org/reference/mouseClicked_.html
 def mousePressed():
@@ -215,21 +237,10 @@ def mousePressed():
         s = g.planets[selected - 1]
         new = g.planets[newSelected - 1]
         planet_distance = sqrt((s.x - new.x) ** 2 + (s.y - new.y) ** 2)
-        planet_range = (s.size * 5) + new.size/2 
+        planet_range = s.range / 2 + new.size/2 
         #print planet_distance, "/", planet_range
         if planet_distance < planet_range:
-            ships_tostay = []
-            for ship in s.ships:
-                if ship.owner == "p1":
-                    ship.destination = new.number
-                    # Calculate their orientation to then new planet
-                    newDegree = atan2((new.y - ship.y), (new.x - ship.x)) + PI
-                    ship.degree = newDegree
-                    ship.orientation = newDegree + PI
-                    g.ships.append(ship)
-                else:
-                    ships_tostay.append(ship)
-            s.ships = ships_tostay
+            send_ships(s, new)
             for planet in g.planets:
                 g.planets[planet.number - 1].selected = False
         else:
@@ -250,23 +261,56 @@ def draw_ship(ship):
     y3 = ship.y - (sin(ship.orientation-PI/2) * 4)
     triangle(x1, y1, x2, y2, x3, y3)
 
+def p2_ai(g):
+    if g.step % 90 == 0:
+        print "Thinking..."
+        p2_planets = []
+        for planet in g.planets:
+            if planet.owner == "p2":
+                p2_planets.append(planet)
+        for p in p2_planets:
+            print "Thinking about", p.number
+            planets_to_attack = []
+            for planet in g.planets:
+                distance = sqrt((p.x - planet.x) ** 2 + (p.y - planet.y) ** 2)
+                if distance < p.range:
+                    print "Planet %d is in range." % planet.number
+                    if planet.owner != p.owner:
+                        print "Planet %d is an enemy (%s)" % (planet.number, planet.owner)
+                        if len(planet.ships) < len(p.ships):
+                            print "Planet %d is weak.  Attacking!" % planet.number
+                            planets_to_attack.append(planet)
+            if len(planets_to_attack) > 0:
+                print "%d planets available." % len(planets_to_attack)
+                target = random.choice(planets_to_attack)
+                print "Sending ships from %d to %d" % (p.number, target.number)
+                send_ships(p, target)
+            else:
+                print "No planets in range/enough ships/enemy"
+                
+            
 def draw_ships_inflight(ships):
     for ship in ships:
         if ship.destination is not None:
-            planet_number = ship.destination - 1
-            dest_x = g.planets[planet_number].x
-            dest_y = g.planets[planet_number].y
-            dest_alt = g.planets[planet_number].size * 0.7
-            distance = sqrt((ship.x - dest_x) ** 2 + (ship.y - dest_y) ** 2)
-            travel_speed = 4
+            pdest = g.planets[ship.destination - 1]
+            psource = g.planets[ship.source - 1]
+            dest_alt = pdest.size * 0.7
+            distance = sqrt((ship.x - pdest.x) ** 2 + (ship.y - pdest.y) ** 2)
+            distance_source = sqrt((ship.x - psource.x) ** 2 + (ship.y - psource.y) ** 2)
+            if distance >= distance_source:
+                travel_speed = distance_source / 30.0
+            else:
+                travel_speed = distance / 30.0
+            if travel_speed < 2.0:
+                travel_speed = 2.0
             if distance <= dest_alt:
                 ships.remove(ship)
                 ship.destination = None
-                ship.altitude = g.planets[planet_number].size * 0.7
-                g.planets[planet_number].ships.append(ship)
+                ship.altitude = pdest.size * 0.7
+                pdest.ships.append(ship)
             else:
-                ship.x = ship.x + (travel_speed / distance) * (dest_x - ship.x)
-                ship.y = ship.y + (travel_speed / distance) * (dest_y - ship.y)
+                ship.x = ship.x + (travel_speed / distance) * (pdest.x - ship.x)
+                ship.y = ship.y + (travel_speed / distance) * (pdest.y - ship.y)
                 ship.grid = grid_index((ship.x, ship.y), g.bounds)
                 g.ship_grid[id(ship)] = ship
                 filler(ship.color)
@@ -344,7 +388,6 @@ def calculate_takeover(planets):
         if len(planet.ships) > 1:
             shipowners = {"p1": 0, "p2": 0, "mob": 0}
             shipcolors = {}
-            #shipowners[planet.owner] = 0
             for ship in planet.ships:
                 # print ship.owner
                 shipowners[ship.owner] += 1
@@ -359,6 +402,16 @@ def calculate_takeover(planets):
                 planets[planet.number - 1].hp = 100
                 planets[planet.number - 1].color = shipcolors[highest]
 
+def count_ships_planets(g):
+    g.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
+    g.current_population = { "p1": 0, "p2": 0, "mob": 0 }
+    for planet in g.planets:
+        g.current_planets[planet.owner] += 1
+        for ship in planet.ships:
+            g.current_population[ship.owner] += 1
+    for ship in g.ships:
+        g.current_population[ship.owner] += 1
+
 def draw_debug():
     total_ship_count = { "p1": 0, "p2": 0, "mob": 0 }
     total_planet_count = { "p1": 0, "p2": 0, "mob": 0 }
@@ -372,9 +425,9 @@ def draw_debug():
     t = []
     t.append("Bounds: %s" % str(g.bounds))
     t.append("Step: %s" % str(g.step))
-    t.append("P1 Population Limit: %s" % str(g.population_limit))
-    t.append("Ships for P1/P2/Mob: %d/%d/%d" % (total_ship_count['p1'], total_ship_count['p2'], total_ship_count['mob']))
-    t.append("Planets for P1/P2/Mob: %d/%d/%d" % (total_planet_count['p1'], total_planet_count['p2'], total_planet_count['mob']))
+    t.append("Population Limits: %s" % str(g.population_limit))
+    t.append("Shipss: %s" % str(g.current_population))
+    t.append("Planets: %s" % str(g.current_planets))
     if len(g.planets[1].ships) > 0:
         s = g.planets[1].ships[0]
         s.color = 0
@@ -393,13 +446,11 @@ def setup():
     size(g.bounds[0], g.bounds[1])
     frameRate(g.framerate)
     g.step = 0
-    g.population_limit = 0
     g.planets = build_planets(10, g.bounds)
 
 def draw():
     background(50)
     g.step += 1
-    #ellipse(mouseX, mouseY, 10, 10);
     draw_ships_inflight(g.ships)
     calculate_takeover(g.planets)
     draw_planets(g.planets)
@@ -407,5 +458,7 @@ def draw():
     build_ships(g.planets)
     g.ships = remove_dead_ships(g.ships)
     calculate_damage(g.ships)
+    count_ships_planets(g)
+    p2_ai(g)
     draw_debug()
 
