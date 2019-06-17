@@ -42,10 +42,15 @@ class GlobalVars():
         self.deleted_grid = {}
         self.ship_grid = {}
         self.step = 0
+        self.total_ship_count = { "p1": 0, "p2": 0, "mob": 0 }
+        self.total_planet_count = { "p1": 0, "p2": 0, "mob": 0 }
         self.population_limit = { "p1": 0, "p2": 0, "mob": 0 }
         self.current_population = { "p1": 0, "p2": 0, "mob": 0 }
         self.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
         self.ai_speed = 150
+        self.p2 = "computer"
+        self.gameover = False
+        self.explosion = []
 
 def filler(color):
     if isinstance(color, types.IntType):
@@ -111,6 +116,7 @@ def build_planets(n, bounds):
     planet_scale = [30, 45, 60, 80, 100]
     p1 = Planet()
     p1.color = (200, 50, 50)
+    p1.hp = 200
     p1.x = 120
     p1.y = 120
     p1.size = 80
@@ -124,6 +130,7 @@ def build_planets(n, bounds):
     p2.x = bounds[0] - 120
     p2.y = bounds[1] - 120
     p2.size = 80
+    p2.hp = 200
     p2.ship_max = 8
     p2.number = 2
     p2.owner = "p2"
@@ -134,6 +141,7 @@ def build_planets(n, bounds):
         planet.number = p
         planet.size = random.choice(planet_scale)
         planet.owner = "mob"
+        planet.hp = planet.size
         planet.ship_rate = planet.size / 10000
         planet.ship_max = int(planet.size / 10)
         planet.x, planet.y = find_empty_spot(planet, planets, bounds)
@@ -177,7 +185,7 @@ def draw_planets(planets):
         
         g.population_limit[planet.owner] += planet.ship_max
         # Also make an HP bar if it's under attack
-        if planet.hp < 100:
+        if planet.hp < planet.size:
             ship_colors = {}
             for ship in planet.ships:
                 try:
@@ -218,35 +226,40 @@ def send_ships(s, new):
 # This is a magical function:
 # https://processing.org/reference/mouseClicked_.html
 def mousePressed():
-    selected = None
-    newSelected = None
-    for planet in g.planets:
-        if planet.selected:
-            selected = planet.number
-
-    # Update planet selections
-    for planet in g.planets:
-        if planet.owner == "p1" or selected is not None:
-            distance = sqrt((planet.x - mouseX) ** 2 + (planet.y - mouseY) ** 2)
-            if distance < 50:
-                g.planets[planet.number - 1].selected = True
-                newSelected = planet.number
+    global g
+    if not g.gameover:
+        selected = None
+        newSelected = None
+        for planet in g.planets:
+            if planet.selected:
+                selected = planet.number
+    
+        # Update planet selections
+        for planet in g.planets:
+            if planet.owner == "p1" or selected is not None:
+                distance = sqrt((planet.x - mouseX) ** 2 + (planet.y - mouseY) ** 2)
+                if distance < 50:
+                    g.planets[planet.number - 1].selected = True
+                    newSelected = planet.number
+                else:
+                    g.planets[planet.number - 1].selected = False
+    
+        if selected != None and newSelected != None:
+            s = g.planets[selected - 1]
+            new = g.planets[newSelected - 1]
+            planet_distance = sqrt((s.x - new.x) ** 2 + (s.y - new.y) ** 2)
+            planet_range = s.range / 2 + new.size/2 
+            #print planet_distance, "/", planet_range
+            if planet_distance < planet_range:
+                send_ships(s, new)
+                for planet in g.planets:
+                    g.planets[planet.number - 1].selected = False
             else:
-                g.planets[planet.number - 1].selected = False
-
-    if selected != None and newSelected != None:
-        s = g.planets[selected - 1]
-        new = g.planets[newSelected - 1]
-        planet_distance = sqrt((s.x - new.x) ** 2 + (s.y - new.y) ** 2)
-        planet_range = s.range / 2 + new.size/2 
-        #print planet_distance, "/", planet_range
-        if planet_distance < planet_range:
-            send_ships(s, new)
-            for planet in g.planets:
-                g.planets[planet.number - 1].selected = False
-        else:
-            s.selected = False
-            new.selected = False
+                s.selected = False
+                new.selected = False
+    else:
+        g = GlobalVars()
+        startgame(g)
 
 def draw_ship(ship):
     #ellipse(ship.x, ship.y, 5, 5)
@@ -285,10 +298,11 @@ def p2_ai(g):
             if len(planets_to_attack) > 0:
                 #print "%d planets available." % len(planets_to_attack)
                 target = random.choice(planets_to_attack)
-                print "Sending ships from %d to %d" % (p.number, target.number)
+                #print "Sending ships from %d to %d" % (p.number, target.number)
                 send_ships(p, target)
             else:
-                print "No planets in range/enough ships/enemy"
+                pass
+                #print "No planets in range/enough ships/enemy"
                 
             
 def draw_ships_inflight(ships):
@@ -368,6 +382,7 @@ def remove_dead_ships(ships):
                 try:
                     del g.ship_grid[id(ship)]
                     g.deleted_grid[id(ship)] = ship
+                    g.explosion.append([ship.x,ship.y,0])
                 except:
                     print "Couldn't delete", id(ship)
         g.planets[planet.number - 1].ships = ship_list
@@ -397,12 +412,64 @@ def calculate_takeover(planets):
             highest = max(shipowners, key=shipowners.get)
             if highest != planet.owner:
                 planet.hp -= 1
-            elif planet.hp < 100:
+            elif planet.hp < planet.size:
                 planet.hp += 1
             if planet.hp < 0:
                 planets[planet.number - 1].owner = highest
-                planets[planet.number - 1].hp = 100
+                planets[planet.number - 1].hp = planet.size
                 planets[planet.number - 1].color = shipcolors[highest]
+
+def draw_fog():
+    grid_symbols = [ "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" ] 
+    grid_size = len(grid_symbols) - 1
+    x_chunk = g.bounds[0] / grid_size
+    y_chunk = g.bounds[1] / grid_size
+    lit_grid = []
+    def _get_surrounding_grids(ship):
+        grids_to_light = []
+        gx = grid_symbols[int(ship.x / x_chunk)]
+        gy = grid_symbols[int(ship.y / y_chunk)]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk) - 1]
+        gy = grid_symbols[int(ship.y / y_chunk)]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk) - 1]
+        gy = grid_symbols[int(ship.y / y_chunk) - 1]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk)]
+        gy = grid_symbols[int(ship.y / y_chunk) - 1]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk) + 1]
+        gy = grid_symbols[int(ship.y / y_chunk)]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk) + 1]
+        gy = grid_symbols[int(ship.y / y_chunk) + 1]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk)]
+        gy = grid_symbols[int(ship.y / y_chunk) + 1]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk) + 1]
+        gy = grid_symbols[int(ship.y / y_chunk) - 1]
+        grids_to_light.append(gx+gy)
+        gx = grid_symbols[int(ship.x / x_chunk) - 1]
+        gy = grid_symbols[int(ship.y / y_chunk) + 1]
+        grids_to_light.append(gx+gy)
+        return grids_to_light
+        
+    for planet in g.planets:
+        for ship in planet.ships:
+            grids_to_light = _get_surrounding_grids(ship)
+            for gr in grids_to_light:
+                if gr not in lit_grid:
+                    lit_grid.append(gr)
+    # Draw black grid
+    filler(0)
+    for x in range(0, grid_size):
+        for y in range(0, grid_size):
+            blackgrid = grid_symbols[x] + grid_symbols[y]
+            if blackgrid not in lit_grid:
+                rect(x * x_chunk, y * y_chunk, x_chunk, y_chunk) 
+
 
 def count_ships_planets(g):
     g.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
@@ -414,26 +481,29 @@ def count_ships_planets(g):
     for ship in g.ships:
         g.current_population[ship.owner] += 1
 
-def draw_debug():
-    total_ship_count = { "p1": 0, "p2": 0, "mob": 0 }
-    total_planet_count = { "p1": 0, "p2": 0, "mob": 0 }
+def calculate_stats(g):
+    g.total_ship_count = { "p1": 0, "p2": 0, "mob": 0 }
+    g.total_planet_count = { "p1": 0, "p2": 0, "mob": 0 }
     for planet in g.planets:
-        total_planet_count[planet.owner] += 1
+        g.total_planet_count[planet.owner] += 1
         for ship in planet.ships:
-            total_ship_count[ship.owner] += 1
+            g.total_ship_count[ship.owner] += 1
     for ship in g.ships:
-        total_ship_count[ship.owner] += 1
+        g.total_ship_count[ship.owner] += 1
 
+def draw_debug(g):
     t = []
     t.append("Bounds: %s" % str(g.bounds))
     t.append("Step: %s" % str(g.step))
     t.append("Population Limits: %s" % str(g.population_limit))
-    t.append("Shipss: %s" % str(g.current_population))
+    t.append("Ships: %s" % str(g.current_population))
     t.append("Planets: %s" % str(g.current_planets))
     #if len(g.planets[1].ships) > 0:
     #    s = g.planets[1].ships[0]
     #    s.color = 0
     #    t.append("Ship 0: %s, Clockwise: %s" % (s.orientation,str(s.clockwise))) 
+    
+    # Draw the text
     textSize(12)
     fill(255, 255, 255, 100)
     x = 10
@@ -441,26 +511,63 @@ def draw_debug():
     for l in t:
         text(l, x, y)
         y += 15
-            
-def setup():
-    global g
-    g = GlobalVars()
-    size(g.bounds[0], g.bounds[1])
-    frameRate(g.framerate)
+        
+def draw_explosions(g):
+    leftover_explosions = []
+    for e in g.explosion:
+        frames = 12
+        x = e[0]
+        y = e[1]
+        r = float(e[2])
+        opacity = 255 - int(r/frames*255.0)
+        fill(random.randint(0,254), random.randint(0,254), random.randint(0,254), opacity )
+        noStroke()
+        rect(x-(r/2), y-(r/2), r*(random.random() + 1), r*(random.random() + 1))
+        stroke(0)
+        #rotate(0)
+        r += 1
+        if r < frames:
+            leftover_explosions.append([x, y, r])
+    g.explosion = leftover_explosions
+    
+def endgame(g):
+    if g.current_planets['p1'] == 0 or g.current_planets['p2'] == 0:
+        textSize(g.bounds[0] / 6)
+        if g.current_planets['p1'] == 0:
+            msg = "YOU LOSE"
+        else:
+            msg = "YOU WIN!"
+        g.gameover = True
+        text(msg, g.bounds[0] / 6, g.bounds[1] / 3)
+
+def startgame(g):
     g.step = 0
     g.planets = build_planets(10, g.bounds)
 
+def setup():
+    size(1,1)
+    global g
+    g = GlobalVars()
+    this.surface.setSize(g.bounds[0], g.bounds[1])
+    frameRate(g.framerate)
+    startgame(g)
+
 def draw():
+    #if not g.gameover:
     background(50)
     g.step += 1
     draw_ships_inflight(g.ships)
     calculate_takeover(g.planets)
+    #draw_fog()
     draw_planets(g.planets)
     draw_ships(g.planets)
+    draw_explosions(g)
     build_ships(g.planets)
     g.ships = remove_dead_ships(g.ships)
     calculate_damage(g.ships)
     count_ships_planets(g)
-    p2_ai(g)
-    draw_debug()
-
+    if g.p2 == "computer":
+        p2_ai(g)
+    calculate_stats(g)
+    draw_debug(g)
+    endgame(g)
