@@ -47,7 +47,7 @@ class GlobalVars():
         self.population_limit = { "p1": 0, "p2": 0, "mob": 0 }
         self.current_population = { "p1": 0, "p2": 0, "mob": 0 }
         self.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
-        self.ai_speed = 150
+        self.ai_speed = 100
         self.p2 = "computer"
         self.gameover = False
         self.explosion = []
@@ -282,9 +282,9 @@ def p2_ai(g):
         for planet in g.planets:
             if planet.owner == "p2":
                 p2_planets.append(planet)
+        planets_to_attack = []
         for p in p2_planets:
             #print "Thinking about", p.number
-            planets_to_attack = []
             for planet in g.planets:
                 distance = sqrt((p.x - planet.x) ** 2 + (p.y - planet.y) ** 2)
                 planet_range = p.range / 2 + planet.size/2
@@ -295,14 +295,14 @@ def p2_ai(g):
                         if len(planet.ships) < len(p.ships):
                             #print "Planet %d is weak.  Attacking!" % planet.number
                             planets_to_attack.append(planet)
-            if len(planets_to_attack) > 0:
-                #print "%d planets available." % len(planets_to_attack)
-                target = random.choice(planets_to_attack)
-                #print "Sending ships from %d to %d" % (p.number, target.number)
-                send_ships(p, target)
-            else:
-                pass
-                #print "No planets in range/enough ships/enemy"
+        if len(planets_to_attack) > 0:
+            #print "%d planets available." % len(planets_to_attack)
+            target = random.choice(planets_to_attack)
+            #print "Sending ships from %d to %d" % (p.number, target.number)
+            send_ships(p, target)
+        else:
+            pass
+            #print "No planets in range/enough ships/enemy"
                 
             
 def draw_ships_inflight(ships):
