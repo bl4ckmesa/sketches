@@ -51,6 +51,20 @@ class GlobalVars():
         self.p2 = "computer"
         self.gameover = False
         self.explosion = []
+        self.state = "menu"
+        self.menu_button_names = [ "Play", "Settings", "Quit" ]
+        self.menu_buttons = []
+
+class Button():
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        self.msg = "Button"
+        self.hover = False
+        self.clicked = False
+        self.height = 80
+        self.width = 300
+        self.font_size = 50
 
 def filler(color):
     if isinstance(color, types.IntType):
@@ -94,7 +108,7 @@ def find_empty_spot(planet, planets, bounds):
 
 def orbit_coord(ship, planet):
     if ship.destination is None:
-        if ship.clockwise:
+        if ship.clockwise: 
             ship.degree += ship.orbital_speed
             ship.orientation = ship.degree + PI/2
         else:
@@ -174,6 +188,8 @@ def draw_planets(planets):
     # Rebuild population from scratch every time
     g.population_limit = { "p1": 0, "p2": 0, "mob": 0 }
     for planet in planets:
+        stroke(0)
+        strokeWeight(1)
         filler(planet.color)
         ellipse(planet.x, planet.y, planet.size, planet.size)
         # textSize(32)
@@ -227,7 +243,7 @@ def send_ships(s, new):
 # https://processing.org/reference/mouseClicked_.html
 def mousePressed():
     global g
-    if not g.gameover:
+    if not g.gameover and g.state == "game":
         selected = None
         newSelected = None
         for planet in g.planets:
@@ -257,9 +273,16 @@ def mousePressed():
             else:
                 s.selected = False
                 new.selected = False
-    else:
+    elif g.state == "menu":
+        for button in g.menu_buttons:
+            if button.msg == "Play":
+                if mouseX >= button.x and mouseX <= (button.x + button.width) and mouseY >= button.y and mouseY <= (button.y + button.height):
+                    g.state = "game"
+                    g.step = 0
+                    startgame(g)
+    elif g.gameover and g.state == "game":
         g = GlobalVars()
-        startgame(g)
+        setup_menu(g)
 
 def draw_ship(ship):
     #ellipse(ship.x, ship.y, 5, 5)
@@ -498,10 +521,6 @@ def draw_debug(g):
     t.append("Population Limits: %s" % str(g.population_limit))
     t.append("Ships: %s" % str(g.current_population))
     t.append("Planets: %s" % str(g.current_planets))
-    #if len(g.planets[1].ships) > 0:
-    #    s = g.planets[1].ships[0]
-    #    s.color = 0
-    #    t.append("Ship 0: %s, Clockwise: %s" % (s.orientation,str(s.clockwise))) 
     
     # Draw the text
     textSize(12)
@@ -540,9 +559,82 @@ def endgame(g):
         g.gameover = True
         text(msg, g.bounds[0] / 6, g.bounds[1] / 3)
 
+def draw_button(btn):
+    stroke(255)
+    strokeWeight(10)
+    if btn.hover:
+        fill(255, 255, 255, 150)
+        rect(btn.x, btn.y, btn.width, btn.height)
+        fill(0)
+        textSize(btn.font_size)
+        text(btn.msg, btn.x + (btn.width / 6), btn.y + (btn.height / 1.4) )
+    else:
+        fill(0, 0, 0, 0)
+        rect(btn.x, btn.y, btn.width, btn.height)
+        fill(255)
+        textSize(btn.font_size)
+        text(btn.msg, btn.x + (btn.width / 6), btn.y + (btn.height / 1.4) )
+
+def update_menu(g):
+    for button in g.menu_buttons:
+        if mouseX >= button.x and mouseX <= (button.x + button.width) and mouseY >= button.y and mouseY <= (button.y + button.height):
+            button.hover = True
+        else:
+            button.hover = False
+
+def draw_menu(g):
+    background(0)
+    x = 300
+    y = 100
+    count = 1
+    fill(255, 255, 255, 255)
+    textSize(90)
+    text("Planetary Takeover", 100, 200)
+    update_menu(g)
+    for b in g.menu_buttons:
+        draw_button(b)
+    
 def startgame(g):
     g.step = 0
-    g.planets = build_planets(10, g.bounds)
+    g.planets = build_planets(12, g.bounds)
+
+def setup_menu(g):
+    count = 1
+    for b in g.menu_button_names:
+        btn = Button()
+        btn.msg = b
+        btn.x = 300 
+        btn.y = 100 + btn.height + (100 * count)
+        count += 1
+        g.menu_buttons.append(btn)
+    
+    p = Planet()
+    p.color = (200, 50, 50)
+    p.hp = 200
+    p.x = 800
+    p.y = 400
+    p.size = 80
+    p.ship_max = 8
+    p.number = 1
+    p.owner = "p1"
+    p2 = Planet()
+    p2.color = (50, 50, 200)
+    p2.hp = 200
+    p2.x = 750
+    p2.y = 500
+    p2.size = 65
+    p2.ship_max = 5
+    p2.number = 2
+    p2.owner = "p2"
+    p3 = Planet()
+    p3.color = (255)
+    p3.hp = 100
+    p3.x = 150
+    p3.y = 450
+    p3.size = 100
+    p3.ship_max = 10
+    p3.owner = "mob"
+    g.planets = [p, p2, p3]
 
 def setup():
     size(1,1)
@@ -550,24 +642,37 @@ def setup():
     g = GlobalVars()
     this.surface.setSize(g.bounds[0], g.bounds[1])
     frameRate(g.framerate)
-    startgame(g)
+    setup_menu(g)
+    
+
 
 def draw():
     #if not g.gameover:
-    background(50)
-    g.step += 1
-    draw_ships_inflight(g.ships)
-    calculate_takeover(g.planets)
-    #draw_fog()
-    draw_planets(g.planets)
-    draw_ships(g.planets)
-    draw_explosions(g)
-    build_ships(g.planets)
-    g.ships = remove_dead_ships(g.ships)
-    calculate_damage(g.ships)
-    count_ships_planets(g)
-    if g.p2 == "computer":
-        p2_ai(g)
-    calculate_stats(g)
-    draw_debug(g)
-    endgame(g)
+    if g.state == "game":
+        background(0)
+        g.step += 1
+        draw_ships_inflight(g.ships)
+        calculate_takeover(g.planets)
+        #draw_fog()
+        draw_planets(g.planets)
+        draw_ships(g.planets)
+        draw_explosions(g)
+        build_ships(g.planets)
+        g.ships = remove_dead_ships(g.ships)
+        calculate_damage(g.ships)
+        count_ships_planets(g)
+        if g.p2 == "computer":
+            p2_ai(g)
+        calculate_stats(g)
+        draw_debug(g)
+        endgame(g)
+    elif g.state == "menu":
+        draw_menu(g)
+        g.step += 1
+        draw_planets(g.planets)
+        build_ships(g.planets)
+        draw_ships(g.planets)
+        draw_explosions(g)
+        g.ships = remove_dead_ships(g.ships)
+        calculate_damage(g.ships)
+        
