@@ -39,6 +39,8 @@ class GlobalVars():
         self.framerate = 30
         self.planets = []
         self.ships = []
+        self.stars = []
+        self.grid_size = 10
         self.deleted_grid = {}
         self.ship_grid = {}
         self.step = 0
@@ -54,6 +56,7 @@ class GlobalVars():
         self.state = "menu"
         self.menu_button_names = [ "Play", "Settings", "Quit" ]
         self.menu_buttons = []
+        self.show_settings = False
 
 class Button():
     def __init__(self):
@@ -121,7 +124,7 @@ def orbit_coord(ship, planet):
         y_offset = sin(ship.degree) * orbit_distance
         ship.x = planet.x + x_offset
         ship.y = planet.y + y_offset
-        ship.grid = grid_index((ship.x, ship.y), g.bounds)
+        ship.grid = grid_index((ship.x, ship.y), g.bounds, g.grid_size)
         g.ship_grid[id(ship)] = ship
     return ship
 
@@ -177,7 +180,7 @@ def build_ships(planets):
                 newShip.color = planet.color
                 newShip.owner = planet.owner
                 newShip.altitude = planet.size * 0.7
-                newShip.grid = grid_index((newShip.x, newShip.y), g.bounds)
+                newShip.grid = grid_index((newShip.x, newShip.y), g.bounds, g.grid_size)
                 newShip.clockwise = bool(random.getrandbits(1)) # Faster than random.choice([True, False])
                 newShip.orbital_speed = newShip.orbital_speed * (random.randint(90,110)/100.0)
                 g.ship_grid[id(newShip)] = newShip
@@ -221,7 +224,6 @@ def draw_ships(planets):
     for planet in planets:
         for ship in planet.ships:
             ship = orbit_coord(ship, planet)
-            filler(ship.color)
             draw_ship(ship)
 
 def send_ships(s, new):
@@ -275,16 +277,23 @@ def mousePressed():
                 new.selected = False
     elif g.state == "menu":
         for button in g.menu_buttons:
-            if button.msg == "Play":
-                if mouseX >= button.x and mouseX <= (button.x + button.width) and mouseY >= button.y and mouseY <= (button.y + button.height):
+            if mouseX >= button.x and mouseX <= (button.x + button.width) and mouseY >= button.y and mouseY <= (button.y + button.height):
+                if button.msg == "Play":
                     g.state = "game"
                     g.step = 0
                     startgame(g)
+                elif button.msg == "Quit":
+                    exit()
+                elif button.msg == "Settings":
+                    g.show_settings = True
+                    
     elif g.gameover and g.state == "game":
         g = GlobalVars()
         setup_menu(g)
 
 def draw_ship(ship):
+    filler(ship.color)
+    stroker(0)
     #ellipse(ship.x, ship.y, 5, 5)
     #line_length = 5
     #line_x = ship.x + (cos(ship.orientation) * line_length)
@@ -317,12 +326,12 @@ def p2_ai(g):
                         #print "Planet %d is an enemy (%s)" % (planet.number, planet.owner)
                         if len(planet.ships) < len(p.ships):
                             #print "Planet %d is weak.  Attacking!" % planet.number
-                            planets_to_attack.append(planet)
+                            planets_to_attack.append([p,planet])
         if len(planets_to_attack) > 0:
             #print "%d planets available." % len(planets_to_attack)
-            target = random.choice(planets_to_attack)
+            source, target = random.choice(planets_to_attack)
             #print "Sending ships from %d to %d" % (p.number, target.number)
-            send_ships(p, target)
+            send_ships(source, target)
         else:
             pass
             #print "No planets in range/enough ships/enemy"
@@ -350,42 +359,44 @@ def draw_ships_inflight(ships):
             else:
                 ship.x = ship.x + (travel_speed / distance) * (pdest.x - ship.x)
                 ship.y = ship.y + (travel_speed / distance) * (pdest.y - ship.y)
-                ship.grid = grid_index((ship.x, ship.y), g.bounds)
+                ship.grid = grid_index((ship.x, ship.y), g.bounds, g.grid_size)
                 g.ship_grid[id(ship)] = ship
                 filler(ship.color)
                 draw_ship(ship)
 
 def laser_ship(ship):
-    try:
-        ship_grid_idx = g.ship_grid[id(ship)].grid
-        ships_in_grid = []
-        for shipid, shipobj in g.ship_grid.iteritems():
-            if shipobj.grid == ship_grid_idx:
-                if shipid != id(ship):
-                    ships_in_grid.append(str(shipid))
-        if len(ships_in_grid) > 1:
-            closest = {"id": None, "dist": 10000}
-            for shipid in ships_in_grid:
-                # Get closest ship
-                enemy_ship = g.ship_grid[int(shipid)]
-                distance = sqrt((ship.x - enemy_ship.x) ** 2 + (ship.y - enemy_ship.y) ** 2)
-                if g.ship_grid[id(enemy_ship)].owner != ship.owner:
+    if g.step % 5 == 0:
+        try:
+            #ship_grid_idx = g.ship_grid[id(ship)].grid
+            ships_in_grid = []
+            for shipid, shipobj in g.ship_grid.iteritems():
+                if shipobj.grid == ship.grid:
+                    if shipid != id(ship):
+                        if shipobj.owner != ship.owner:
+                            ships_in_grid.append(str(shipid))
+            if len(ships_in_grid) > 1:
+                # Largest possible distance is the diagonal of one grid
+                max_dist = int(sqrt((g.bounds[0] ** 2) + (g.bounds[1] ** 2)) / g.grid_size)
+                closest = {"id": None, "dist": max_dist}
+                for shipid in ships_in_grid:
+                    # Get closest ship
+                    next_enemy_ship = g.ship_grid[int(shipid)]
+                    distance = sqrt((ship.x - next_enemy_ship.x) ** 2 + (ship.y - next_enemy_ship.y) ** 2)
                     if distance < closest['dist']:
-                        closest['id'] = id(enemy_ship)
+                        closest['id'] = id(next_enemy_ship)
                         closest['dist'] = distance
-            if closest['id'] is not None:
-                if g.step % 5 == 0:
+                if closest['id'] is not None:                    
                     enemy = g.ship_grid[int(closest['id'])]
                     enemy.hp -= 1
                     stroker(ship.color)
                     line(enemy.x, enemy.y, ship.x, ship.y)
                     stroke(0)
-    except Exception as e:
-        print "Couldn't find ship.  Maybe it was deleted?"
-        try:
-            print id(ship)
-        except:
-            pass
+        except Exception as e:
+            print "Couldn't find ship.  Maybe it was deleted?"
+            try:
+                print id(ship)
+            except:
+                pass
 
 def calculate_damage(ships):
     # Get ships in flight as well as ships around planets
@@ -418,9 +429,9 @@ def remove_dead_ships(ships):
             g.deleted_grid[id(ship)] = ship
     return flight_list
 
-def grid_index(coord, bounds):
-    idx_x = str(int(coord[0] / bounds[0] * 100 / 10))
-    idx_y = str(int(coord[1] / bounds[1] * 100 / 10))
+def grid_index(coord, bounds, grid_size):
+    idx_x = str(int(coord[0] / bounds[0] * 100 / grid_size))
+    idx_y = str(int(coord[1] / bounds[1] * 100 / grid_size))
     return idx_x + idx_y
 
 def calculate_takeover(planets):
@@ -530,7 +541,8 @@ def draw_debug(g):
     for l in t:
         text(l, x, y)
         y += 15
-        
+    draw_grid(g.grid_size, g.bounds[0], g.bounds[1]) 
+            
 def draw_explosions(g):
     leftover_explosions = []
     for e in g.explosion:
@@ -548,7 +560,26 @@ def draw_explosions(g):
         if r < frames:
             leftover_explosions.append([x, y, r])
     g.explosion = leftover_explosions
-    
+
+def draw_grid(grid_size, boundx, boundy):
+    stroker(255)
+    stepx = int(boundx / grid_size)
+    stepy = int(boundy / grid_size)
+    for num in xrange(0,grid_size):
+        # Vertical lines at each horizontal step
+        x1 = num * stepx
+        y1 = 0
+        x2 = x1
+        y2 = boundy
+        line(x1, y1, x2, y2)
+        # Horizontal lines at each vertical step
+        x1 = 0
+        y1 = num * stepy
+        x2 = boundx
+        y2 = y1
+        line(x1, y1, x2, y2)
+        
+
 def endgame(g):
     if g.current_planets['p1'] == 0 or g.current_planets['p2'] == 0:
         textSize(g.bounds[0] / 6)
@@ -583,7 +614,7 @@ def update_menu(g):
             button.hover = False
 
 def draw_menu(g):
-    background(0)
+    draw_background(g)
     x = 300
     y = 100
     count = 1
@@ -636,31 +667,46 @@ def setup_menu(g):
     p3.owner = "mob"
     g.planets = [p, p2, p3]
 
+def build_stars(g):
+    for x in range(0, random.randint(20,550)):
+        x = random.randint(50, (g.bounds[0] - 50))
+        y = random.randint(50, (g.bounds[1] - 50))
+        g.stars.append({'x': x, 'y': y, 'size': random.randint(1,5), 'id': random.randint(1,100000), 'offset': random.randint(0,100)})
+        
+def draw_stars(g):
+    for star in g.stars:
+        fill(255, 255, 255, random.randint(150,250))
+        ellipse(star['x'], star['y'], star['size'], star['size'])
+        
+def draw_background(g):
+    background(50)
+    draw_stars(g)
+    
 def setup():
     size(1,1)
     global g
     g = GlobalVars()
     this.surface.setSize(g.bounds[0], g.bounds[1])
     frameRate(g.framerate)
+    build_stars(g)
     setup_menu(g)
     
-
-
 def draw():
-    #if not g.gameover:
     if g.state == "game":
-        background(0)
+        draw_background(g)
         g.step += 1
-        draw_ships_inflight(g.ships)
+   
         calculate_takeover(g.planets)
-        #draw_fog()
-        draw_planets(g.planets)
-        draw_ships(g.planets)
-        draw_explosions(g)
         build_ships(g.planets)
         g.ships = remove_dead_ships(g.ships)
         calculate_damage(g.ships)
         count_ships_planets(g)
+
+        #draw_fog()
+        draw_ships_inflight(g.ships)
+        draw_planets(g.planets)
+        draw_ships(g.planets)
+        draw_explosions(g)
         if g.p2 == "computer":
             p2_ai(g)
         calculate_stats(g)
