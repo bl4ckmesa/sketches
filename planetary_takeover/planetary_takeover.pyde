@@ -419,6 +419,10 @@ def remove_dead_ships(ships):
                     g.explosion.append([ship.x,ship.y,0])
                 except:
                     print "Couldn't delete", id(ship)
+        #processing.app.SketchException: IndexError: index out of range: 13
+        # at jycessing.mode.run.SketchRunner.convertPythonSketchError(SketchRunner.java:242)
+        # at jycessing.mode.run.SketchRunner.lambda$2(SketchRunner.java:119)
+         #  at java.lang.Thread.run(Thread.java:748)
         g.planets[planet.number - 1].ships = ship_list
     flight_list = []
     for ship in ships:
@@ -452,58 +456,6 @@ def calculate_takeover(planets):
                 planets[planet.number - 1].owner = highest
                 planets[planet.number - 1].hp = planet.size
                 planets[planet.number - 1].color = shipcolors[highest]
-
-def draw_fog():
-    grid_symbols = [ "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z" ] 
-    grid_size = len(grid_symbols) - 1
-    x_chunk = g.bounds[0] / grid_size
-    y_chunk = g.bounds[1] / grid_size
-    lit_grid = []
-    def _get_surrounding_grids(ship):
-        grids_to_light = []
-        gx = grid_symbols[int(ship.x / x_chunk)]
-        gy = grid_symbols[int(ship.y / y_chunk)]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk) - 1]
-        gy = grid_symbols[int(ship.y / y_chunk)]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk) - 1]
-        gy = grid_symbols[int(ship.y / y_chunk) - 1]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk)]
-        gy = grid_symbols[int(ship.y / y_chunk) - 1]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk) + 1]
-        gy = grid_symbols[int(ship.y / y_chunk)]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk) + 1]
-        gy = grid_symbols[int(ship.y / y_chunk) + 1]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk)]
-        gy = grid_symbols[int(ship.y / y_chunk) + 1]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk) + 1]
-        gy = grid_symbols[int(ship.y / y_chunk) - 1]
-        grids_to_light.append(gx+gy)
-        gx = grid_symbols[int(ship.x / x_chunk) - 1]
-        gy = grid_symbols[int(ship.y / y_chunk) + 1]
-        grids_to_light.append(gx+gy)
-        return grids_to_light
-        
-    for planet in g.planets:
-        for ship in planet.ships:
-            grids_to_light = _get_surrounding_grids(ship)
-            for gr in grids_to_light:
-                if gr not in lit_grid:
-                    lit_grid.append(gr)
-    # Draw black grid
-    filler(0)
-    for x in range(0, grid_size):
-        for y in range(0, grid_size):
-            blackgrid = grid_symbols[x] + grid_symbols[y]
-            if blackgrid not in lit_grid:
-                rect(x * x_chunk, y * y_chunk, x_chunk, y_chunk) 
-
 
 def count_ships_planets(g):
     g.current_planets = { "p1": 0, "p2": 0, "mob": 0 }
@@ -541,7 +493,7 @@ def draw_debug(g):
     for l in t:
         text(l, x, y)
         y += 15
-    draw_grid(g.grid_size, g.bounds[0], g.bounds[1]) 
+    #draw_grid(g.grid_size, g.bounds[0], g.bounds[1]) 
             
 def draw_explosions(g):
     leftover_explosions = []
@@ -678,6 +630,48 @@ def draw_stars(g):
         fill(255, 255, 255, random.randint(150,250))
         ellipse(star['x'], star['y'], star['size'], star['size'])
         
+def draw_fog(g):
+    pg = createGraphics(g.bounds[0], g.bounds[1])
+    pg.beginDraw()
+    pg.background(0)
+    #pg.stroke(0)
+    #pg.fill(150, 150, 150, 200)
+    #pg.rect(0, 0, g.bounds[0], g.bounds[1])
+    pg.endDraw()
+    
+    msk = createGraphics(g.bounds[0], g.bounds[1])
+    msk.beginDraw()
+    msk.background(255)
+    msk.fill(0)
+    my_planets = []
+    other_planets = []
+    ship_sight = 100
+    for planet in g.planets:
+        if planet.owner == "p1":
+            my_planets.append(planet)
+        else:
+            other_planets.append(planet)
+    for planet in my_planets:
+        msk.ellipse(planet.x, planet.y, planet.size * 1.8, planet.size * 1.8)
+        for ship in planet.ships:
+            if ship.owner == "p1":
+                msk.ellipse(ship.x, ship.y, ship_sight, ship_sight)
+        for op in other_planets:
+            planet_distance = sqrt((planet.x - op.x) ** 2 + (planet.y - op.y) ** 2)
+            planet_range = planet.range / 2 + op.size/2
+            if planet_distance < planet_range:
+                msk.ellipse(op.x, op.y, op.size * 1.2, op.size * 1.2)
+            for ship in op.ships:
+                if ship.owner == "p1":
+                    msk.ellipse(ship.x, ship.y, ship_sight, ship_sight)
+
+    for ship in g.ships:
+        if ship.owner == "p1":
+            msk.ellipse(ship.x, ship.y, ship_sight, ship_sight)
+    msk.endDraw()
+    pg.mask(msk)
+    image(pg,0,0)
+        
 def draw_background(g):
     background(50)
     draw_stars(g)
@@ -701,12 +695,12 @@ def draw():
         g.ships = remove_dead_ships(g.ships)
         calculate_damage(g.ships)
         count_ships_planets(g)
-
-        #draw_fog()
-        draw_ships_inflight(g.ships)
+        
         draw_planets(g.planets)
+        draw_ships_inflight(g.ships)
         draw_ships(g.planets)
         draw_explosions(g)
+        #draw_fog(g)
         if g.p2 == "computer":
             p2_ai(g)
         calculate_stats(g)
