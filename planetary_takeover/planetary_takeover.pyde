@@ -41,6 +41,7 @@ class GlobalVars():
         self.ships = []
         self.stars = []
         self.grid_size = 10
+        self.fog_count = 0
         self.deleted_grid = {}
         self.ship_grid = {}
         self.step = 0
@@ -57,6 +58,7 @@ class GlobalVars():
         self.menu_button_names = [ "Play", "Settings", "Quit" ]
         self.menu_buttons = []
         self.show_settings = False
+        self.fog = None
 
 class Button():
     def __init__(self):
@@ -420,9 +422,6 @@ def remove_dead_ships(ships):
                 except:
                     print "Couldn't delete", id(ship)
         #processing.app.SketchException: IndexError: index out of range: 13
-        # at jycessing.mode.run.SketchRunner.convertPythonSketchError(SketchRunner.java:242)
-        # at jycessing.mode.run.SketchRunner.lambda$2(SketchRunner.java:119)
-         #  at java.lang.Thread.run(Thread.java:748)
         g.planets[planet.number - 1].ships = ship_list
     flight_list = []
     for ship in ships:
@@ -484,6 +483,7 @@ def draw_debug(g):
     t.append("Population Limits: %s" % str(g.population_limit))
     t.append("Ships: %s" % str(g.current_population))
     t.append("Planets: %s" % str(g.current_planets))
+    t.append("Fog count: %s" % str(g.fog_count))
     
     # Draw the text
     textSize(12)
@@ -630,15 +630,12 @@ def draw_stars(g):
         fill(255, 255, 255, random.randint(150,250))
         ellipse(star['x'], star['y'], star['size'], star['size'])
         
-def draw_fog(g):
+def gen_fog(g):
+    fog_count = 0
     pg = createGraphics(g.bounds[0], g.bounds[1])
     pg.beginDraw()
     pg.background(0)
-    #pg.stroke(0)
-    #pg.fill(150, 150, 150, 200)
-    #pg.rect(0, 0, g.bounds[0], g.bounds[1])
     pg.endDraw()
-    
     msk = createGraphics(g.bounds[0], g.bounds[1])
     msk.beginDraw()
     msk.background(255)
@@ -653,24 +650,38 @@ def draw_fog(g):
             other_planets.append(planet)
     for planet in my_planets:
         msk.ellipse(planet.x, planet.y, planet.size * 1.8, planet.size * 1.8)
+        fog_count += 1
         for ship in planet.ships:
             if ship.owner == "p1":
                 msk.ellipse(ship.x, ship.y, ship_sight, ship_sight)
+                fog_count += 1
         for op in other_planets:
             planet_distance = sqrt((planet.x - op.x) ** 2 + (planet.y - op.y) ** 2)
             planet_range = planet.range / 2 + op.size/2
             if planet_distance < planet_range:
                 msk.ellipse(op.x, op.y, op.size * 1.2, op.size * 1.2)
+                fog_count += 1
             for ship in op.ships:
                 if ship.owner == "p1":
                     msk.ellipse(ship.x, ship.y, ship_sight, ship_sight)
+                    fog_count += 1
 
     for ship in g.ships:
         if ship.owner == "p1":
             msk.ellipse(ship.x, ship.y, ship_sight, ship_sight)
+            fog_count += 1
     msk.endDraw()
     pg.mask(msk)
-    image(pg,0,0)
+    g.fog_count = fog_count
+    g.fog = pg
+
+def draw_fog(g):
+    # Can limit how often we actually draw this things
+    if g.step % 1 == 0:
+        img = gen_fog(g)
+        image(g.fog, 0, 0)
+    else:
+        image(g.fog, 0, 0)
         
 def draw_background(g):
     background(50)
@@ -684,6 +695,7 @@ def setup():
     frameRate(g.framerate)
     build_stars(g)
     setup_menu(g)
+    gen_fog(g)
     
 def draw():
     if g.state == "game":
@@ -700,7 +712,7 @@ def draw():
         draw_ships_inflight(g.ships)
         draw_ships(g.planets)
         draw_explosions(g)
-        #draw_fog(g)
+        draw_fog(g)
         if g.p2 == "computer":
             p2_ai(g)
         calculate_stats(g)
