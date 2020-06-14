@@ -649,7 +649,7 @@ def gen_fog(g):
         else:
             other_planets.append(planet)
     for planet in my_planets:
-        msk.ellipse(planet.x, planet.y, planet.size * 1.8, planet.size * 1.8)
+        msk.ellipse(planet.x, planet.y, planet.size * 2.5, planet.size * 2.5)
         fog_count += 1
         for ship in planet.ships:
             if ship.owner == "p1":
@@ -659,7 +659,11 @@ def gen_fog(g):
             planet_distance = sqrt((planet.x - op.x) ** 2 + (planet.y - op.y) ** 2)
             planet_range = planet.range / 2 + op.size/2
             if planet_distance < planet_range:
-                msk.ellipse(op.x, op.y, op.size * 1.2, op.size * 1.2)
+                msk.fill(240)
+                msk.stroke(255)
+                msk.ellipse(op.x, op.y, op.size, op.size)
+                msk.stroke(0)
+                msk.fill(0)
                 fog_count += 1
             for ship in op.ships:
                 if ship.owner == "p1":
