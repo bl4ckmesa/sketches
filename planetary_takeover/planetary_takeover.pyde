@@ -166,6 +166,8 @@ def build_planets(n, bounds):
         planet.x, planet.y = find_empty_spot(planet, planets, bounds)
         if (planet.x, planet.y) != (0, 0):
             planets.append(planet)
+        else:
+            break
             
     for p in planets:
         p.range = p.size * 10
@@ -366,20 +368,30 @@ def draw_ships_inflight(ships):
                 filler(ship.color)
                 draw_ship(ship)
 
-def laser_ship(ship):
+def laser_ship(g,ship):
     if g.step % 5 == 0:
         try:
-            #ship_grid_idx = g.ship_grid[id(ship)].grid
+            ship_grid_idx = g.ship_grid[id(ship)].grid
             ships_in_grid = []
             for shipid, shipobj in g.ship_grid.iteritems():
                 if shipobj.grid == ship.grid:
                     if shipid != id(ship):
                         if shipobj.owner != ship.owner:
                             ships_in_grid.append(str(shipid))
-            if len(ships_in_grid) > 1:
+            
+            ## Let's try ignoring grids. Or a moving grid or something
+            #ships_in_grid = []
+            #ship_x_range = (ship.x - 10, ship.x + 10)
+            #ship_y_range = (ship.y - 10, ship.y + 10)
+            #for target_ship in g.ships:
+            #    if ship_x_range[0] < target_ship.x < ship_x_range[1] and ship_y_range[0] < target_ship.y < ship_y_range[1]:
+            #        print "Found one"
+            #        ships_in_grid.append(target_ship)
+            
+            if len(ships_in_grid) >= 1:
                 # Largest possible distance is the diagonal of one grid
                 max_dist = int(sqrt((g.bounds[0] ** 2) + (g.bounds[1] ** 2)) / g.grid_size)
-                closest = {"id": None, "dist": max_dist}
+                closest = {"id": None, "dist": 100}
                 for shipid in ships_in_grid:
                     # Get closest ship
                     next_enemy_ship = g.ship_grid[int(shipid)]
@@ -392,9 +404,10 @@ def laser_ship(ship):
                     enemy.hp -= 1
                     stroker(ship.color)
                     line(enemy.x, enemy.y, ship.x, ship.y)
-                    stroke(0)
+                    stroke(0)                
         except Exception as e:
             print "Couldn't find ship.  Maybe it was deleted?"
+            print(e)
             try:
                 print id(ship)
             except:
@@ -403,10 +416,10 @@ def laser_ship(ship):
 def calculate_damage(ships):
     # Get ships in flight as well as ships around planets
     for ship in ships:
-        laser_ship(ship)
+        laser_ship(g,ship)
     for planet in g.planets:
         for ship in planet.ships:
-            laser_ship(ship)
+            laser_ship(g,ship)
 
 def remove_dead_ships(ships):
     for planet in g.planets:
@@ -421,7 +434,6 @@ def remove_dead_ships(ships):
                     g.explosion.append([ship.x,ship.y,0])
                 except:
                     print "Couldn't delete", id(ship)
-        #processing.app.SketchException: IndexError: index out of range: 13
         g.planets[planet.number - 1].ships = ship_list
     flight_list = []
     for ship in ships:
@@ -483,7 +495,14 @@ def draw_debug(g):
     t.append("Population Limits: %s" % str(g.population_limit))
     t.append("Ships: %s" % str(g.current_population))
     t.append("Planets: %s" % str(g.current_planets))
+    #t.append("Ships per planet:")
+    #for planet in g.planets:
+    #    text(planet.number, planet.x, planet.y)
+    #    t.append("Planet %s" % str(planet.number))
+    #    for ship in planet.ships:
+    #        t.append("    Owner: %s, Grid ID: %s, Ship HP: %s" % (ship.owner,ship.grid,ship.hp))
     t.append("Fog count: %s" % str(g.fog_count))
+
     
     # Draw the text
     textSize(12)
