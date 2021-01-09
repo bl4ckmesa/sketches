@@ -1,3 +1,27 @@
+profiler = {}
+import time
+DEBUG=False
+
+def p_run(func, *args):
+    if DEBUG:
+        start_time = time.time()
+        value = func(*args)
+        end_time = time.time()
+        try:
+            profile = profiler[func.func_name]
+            new_average = ((profile["average_runtime"] * profile["runcount"]) + ((end_time - start_time)*1000)) / (profile["runcount"] + 1)
+            profile["runcount"] += 1
+            profile["average_runtime"] = new_average
+        except:
+            profile = { "runcount" : 1, "average_runtime" : (end_time - start_time) * 1000 }
+        profiler[func.func_name] = profile
+        return value
+    else:
+        return func(*args)
+
+# def p_run(func, *args):
+#     return func(*args)
+
 class Globals():
     def __init__(self):
         self.squares = {}
@@ -7,7 +31,7 @@ class Globals():
 def draw_buttons():
     stroke(100)
     fill(0)
-    rect(0,0,120,50)
+    rect(0,0,200,50)
     if g.play:
         stroke(255)
         fill(255)
@@ -24,11 +48,21 @@ def draw_buttons():
     square(40, 10, 30)
     stroke(255)
     fill(0)
-    circle(95,25,30)   
+    circle(95,25,30)
+    # Speed
+    rect(120,20,30,10)
+    rect(130,10,10,30)
+    rect(160,20,30,10)
+    textSize(24)
+    fill(255)
+    text("Iterations per second: %d" % g.iterspersec, 210, 35, 20)
 
 class Square():
     def __init__(self):
         self.on = False
+
+def gen_id(x,y):
+    return "%s:%s" % (str(x).zfill(3), str(y).zfill(3))
 
 def generate_squares():
     for x in range(g.countW):
@@ -40,7 +74,8 @@ def generate_squares():
             s.y2 = s.y + g.grid_size
             s.idx = x
             s.idy = y
-            g.squares["%s:%s" % (str(x).zfill(3), str(y).zfill(3))] = s
+            g.squares[gen_id(x,y)] = s
+
 
 def draw_squares():
     for k, s in g.squares.items():
@@ -48,7 +83,7 @@ def draw_squares():
             stroke(0)
             fill(255)
         else:
-            stroke(1)
+            stroke(10)
             fill(0)
         rect(s.x, s.y, g.grid_size, g.grid_size) 
 
@@ -59,17 +94,28 @@ def neighbors_on(sqr):
     sqr_id_x = sqr.idx
     sqr_id_y = sqr.idy
     neighbors = 0
-    for k, s in g.squares.items():
-        if s.on:
-            #id_x = int(k.split(":")[0])
-            #id_y = int(k.split(":")[1])
-            id_x = s.idx
-            id_y = s.idy
-            if id_x in [sqr_id_x - 1, sqr_id_x, sqr_id_x + 1] and id_y in [sqr_id_y - 1, sqr_id_y, sqr_id_y + 1]:
-                # It's in the neighborhood
-                if (sqr_id_x,sqr_id_y) != (id_x,id_y):
-                    # It's not itself, but a neighbor
+    
+    neighbor_keys = [ 
+        gen_id(sqr_id_x-1,sqr_id_y-1), gen_id(sqr_id_x,sqr_id_y-1), gen_id(sqr_id_x+1,sqr_id_y-1),
+        gen_id(sqr_id_x-1,sqr_id_y),                                gen_id(sqr_id_x+1,sqr_id_y),
+        gen_id(sqr_id_x-1,sqr_id_y+1), gen_id(sqr_id_x,sqr_id_y+1), gen_id(sqr_id_x+1,sqr_id_y+1)
+        ]
+    for k in neighbor_keys:
+        try:
+            s = g.squares[k]
+            if s.on:
+                id_x = s.idx
+                id_y = s.idy
+                if id_x in [sqr_id_x - 1, sqr_id_x, sqr_id_x + 1] and id_y in [sqr_id_y - 1, sqr_id_y, sqr_id_y + 1]:
                     neighbors += 1
+        except:
+            pass    
+    # # Way inefficient
+    # for k, s in g.squares.items():
+    #     if s.on:
+    #         #id_x = int(k.split(":")[0])
+    #         #id_y = int(k.split(":")[1])
+
     return neighbors
 
 def iterateGame():
@@ -83,12 +129,12 @@ def iterateGame():
     turn_off = []
     for k, s in g.squares.items():
         if s.on:
-            if neighbors_on(s) in [2,3]:
+            if p_run(neighbors_on,s) in [2,3]:
                 turn_on.append(k)
             else:
                 turn_off.append(k)
         else:
-            if neighbors_on(s) == 3:
+            if p_run(neighbors_on,s) == 3:
                 turn_on.append(k)
     for k in turn_on:
         g.squares[k].on = True
@@ -97,6 +143,7 @@ def iterateGame():
             
                 
 def mouseClicked():
+    speed_list = [ 1, 2, 4, 10, 15, 20, 30, 45, 60 ]
     if 10 <= mouseX <= 30 and 10 <= mouseY <= 40:
         print("Running Simulation.")
         g.play = True
@@ -108,25 +155,40 @@ def mouseClicked():
         g.play = False
         for k, s in g.squares.items():
             g.squares[k].on = False
+    elif 120 <= mouseX <= 150 and 10 <= mouseY <= 40:
+        idx = speed_list.index(g.iterspersec)
+        if idx < len(speed_list)-1:
+            g.iterspersec = speed_list[idx + 1]
+    elif 160 <= mouseX <= 185 and 10 <= mouseY <= 40:
+        idx = speed_list.index(g.iterspersec)
+        if idx > 0:
+            g.iterspersec = speed_list[idx - 1]
 
 
 def setup():
-    #size(800,600)
-    fullScreen()
+    size(1000,800)
+    frameRate(60)
+    #fullScreen()
     global g
     g = Globals()
-    g.grid_size = height / 20
+    g.grid_size = height / 40
+    #g.grid_size = 10
     g.countH = int(height/g.grid_size)
     g.countW = int(width/g.grid_size)
-    generate_squares()
+    p_run(generate_squares)
+    g.iterspersec = 1
 
 def draw():
     g.tick += 1
     background(0)
-    draw_squares()
-    draw_buttons()
-    if g.tick % 10 == 0 and g.play == True:
-        iterateGame()
+    p_run(draw_squares)
+    p_run(draw_buttons)
+    if g.tick % int(60/g.iterspersec) == 0 and g.play == True:
+        p_run(iterateGame)
+    if DEBUG:
+        if g.tick % 10 == 0:
+            for k, v in profiler.items():
+                print("%s: %s" % (k, v))
     if mousePressed:
         for k, s in g.squares.items():
             if s.x <= mouseX <= s.x2 and s.y <= mouseY <= s.y2:
