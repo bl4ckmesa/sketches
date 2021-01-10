@@ -56,6 +56,7 @@ def draw_buttons():
     textSize(24)
     fill(255)
     text("Iterations per second: %d" % g.iterspersec, 210, 35, 20)
+    text("Grid Size: %d" % int(height / g.grid_multiplier), 500, 35, 20)
 
 class Square():
     def __init__(self):
@@ -65,17 +66,26 @@ def gen_id(x,y):
     return "%s:%s" % (str(x).zfill(3), str(y).zfill(3))
 
 def generate_squares():
-    for x in range(g.countW):
-        for y in range(g.countH):
-            s = Square()
-            s.x = x * g.grid_size
-            s.y = y * g.grid_size
-            s.x2 = s.x + g.grid_size
-            s.y2 = s.y + g.grid_size
-            s.idx = x
-            s.idy = y
-            g.squares[gen_id(x,y)] = s
-
+    #g.squares = {}
+    for x in range(100):
+            for y in range(100):
+                if y < g.countH and x < g.countW:
+                    try:
+                        s = g.squares[gen_id(x,y)]
+                    except:
+                        s = Square()
+                    s.x = x * g.grid_size
+                    s.y = y * g.grid_size
+                    s.x2 = s.x + g.grid_size
+                    s.y2 = s.y + g.grid_size
+                    s.idx = x
+                    s.idy = y
+                    g.squares[gen_id(x,y)] = s
+                else:
+                    try:
+                        del g.squares[gen_id(x,y)]
+                    except:
+                        pass
 
 def draw_squares():
     for k, s in g.squares.items():
@@ -89,12 +99,9 @@ def draw_squares():
 
 def neighbors_on(sqr):
     # Check all your neighbors to see how many are on, return number
-    #sqr_id_x = int(sqr.split(":")[0])
-    #sqr_id_y = int(sqr.split(":")[1])
     sqr_id_x = sqr.idx
     sqr_id_y = sqr.idy
     neighbors = 0
-    
     neighbor_keys = [ 
         gen_id(sqr_id_x-1,sqr_id_y-1), gen_id(sqr_id_x,sqr_id_y-1), gen_id(sqr_id_x+1,sqr_id_y-1),
         gen_id(sqr_id_x-1,sqr_id_y),                                gen_id(sqr_id_x+1,sqr_id_y),
@@ -109,13 +116,7 @@ def neighbors_on(sqr):
                 if id_x in [sqr_id_x - 1, sqr_id_x, sqr_id_x + 1] and id_y in [sqr_id_y - 1, sqr_id_y, sqr_id_y + 1]:
                     neighbors += 1
         except:
-            pass    
-    # # Way inefficient
-    # for k, s in g.squares.items():
-    #     if s.on:
-    #         #id_x = int(k.split(":")[0])
-    #         #id_y = int(k.split(":")[1])
-
+            pass   
     return neighbors
 
 def iterateGame():
@@ -143,7 +144,7 @@ def iterateGame():
             
                 
 def mouseClicked():
-    speed_list = [ 1, 2, 4, 10, 15, 20, 30, 45, 60 ]
+    speed_list = [ 1, 2, 4, 6, 8, 10, 15, 20, 30, 45, 60 ]
     if 10 <= mouseX <= 30 and 10 <= mouseY <= 40:
         print("Running Simulation.")
         g.play = True
@@ -164,19 +165,32 @@ def mouseClicked():
         if idx > 0:
             g.iterspersec = speed_list[idx - 1]
 
+def mouseWheel(event):
+    if event.getCount() > 0:
+        if g.grid_multiplier < 1000:
+            g.grid_multiplier += 3
+            p_run(reset_grid)
+    else:
+        if g.grid_multiplier > 2:
+            g.grid_multiplier -= 3
+            p_run(reset_grid)
 
+def reset_grid():
+    g.grid_size = height / g.grid_multiplier
+    #g.grid_size = 10
+    g.countH = int(height/g.grid_size)
+    g.countW = int(width/g.grid_size)
+    p_run(generate_squares)
+    
 def setup():
     size(1000,800)
     frameRate(60)
     #fullScreen()
     global g
     g = Globals()
-    g.grid_size = height / 40
-    #g.grid_size = 10
-    g.countH = int(height/g.grid_size)
-    g.countW = int(width/g.grid_size)
-    p_run(generate_squares)
-    g.iterspersec = 1
+    g.grid_multiplier = 25
+    p_run(reset_grid)
+    g.iterspersec = 4
 
 def draw():
     g.tick += 1
@@ -197,3 +211,12 @@ def draw():
                 elif mouseButton == RIGHT:
                     s.on = False
                 break
+    if keyPressed:
+        if key == "-":
+            if g.grid_multiplier < 1000:
+                g.grid_multiplier += 1
+                p_run(reset_grid)
+        if key == "+":
+            if g.grid_multiplier > 2:
+                g.grid_multiplier -= 1
+                p_run(reset_grid)
